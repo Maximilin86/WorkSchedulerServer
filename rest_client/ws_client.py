@@ -27,9 +27,9 @@ def rest_post(path, **data):
 
 
 def main():
-    for user in rest_get('/'):
-        print(user)
-    r = rest_post('/login', user='Test1', password='01234')
+    # for user in rest_get('/users'):
+    #     print(user)
+    r = rest_post('/login', user='admin', password='admin')
     if 'error' in r:
         print(r)
         return
