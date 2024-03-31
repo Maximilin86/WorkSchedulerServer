@@ -6,3 +6,9 @@ CREATE TABLE users (
     user TEXT NOT NULL,
     password TEXT NOT NULL
 );
+DROP TABLE IF EXISTS session;
+CREATE TABLE session (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL,
+    user_id INTEGER NOT NULL
+);

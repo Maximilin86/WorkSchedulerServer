@@ -48,6 +48,6 @@ def login():
     if user is None:
         return {'error': 'User not found'}
     token = ws_db.start_user_session(user['id'])
-    return {**user, 'token': token}
+    return {'token': token}
 
 

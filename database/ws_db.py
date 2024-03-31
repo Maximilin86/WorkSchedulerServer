@@ -2,7 +2,8 @@ import json
 import sqlite3
 import pathlib
 import work_scheduler as ws
-
+import string
+import secrets
 DB_DIR = pathlib.Path(__file__).parent
 
 db_file = DB_DIR / 'work_scheduler.db'
@@ -25,7 +26,7 @@ def add_user(user, password, role: ws.Role):
 
 def initial():
     with get_db_connection() as connection:
-        with open('schema.sql') as f:
+        with open(pathlib.Path(__file__).parent / 'schema.sql') as f:
             connection.executescript(f.read())
         connection.commit()
     add_user("Test1", '01234', role=ws.Role.USER)
@@ -53,4 +54,15 @@ def find_user(username: str, password: str):
 
 def start_user_session(user_id):
 
-    return 'tok'
+    alphabet = string.ascii_letters + string.digits
+    letters = []
+    for i in range(64):
+        letter = secrets.choice(alphabet)
+        letters.append(letter)
+    password = ''.join(letters)
+    return password
+
+if __name__ == '__main__':
+    print(string.ascii_letters)
+    print(string.digits)
+    pass
