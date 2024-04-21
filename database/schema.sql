@@ -19,4 +19,21 @@ CREATE TABLE sessions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
-
+DROP TABLE IF EXISTS desires;
+CREATE TABLE desires(
+    date DATE NOT NULL,
+    user_id INTEGER NOT NULL,
+    desire_id INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    CONSTRAINT desires_date_user_id_unique UNIQUE (date,user_id)
+);
+DROP TABLE IF EXISTS orders;
+CREATE TABLE orders(
+    date DATE NOT NULL,
+    user_id INTEGER NOT NULL,
+    the_order TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    CONSTRAINT orders_date_user_id_unique UNIQUE (date,user_id)
+);

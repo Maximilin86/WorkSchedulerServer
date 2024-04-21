@@ -46,6 +46,26 @@ def login():
     return jsonify({'token': token})
 
 
+@app.post("/set_desire")
+def login():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415
+    form = request.get_json()
+    try:
+        token = form['token']
+        desire_id = form['desire_id']
+    except ValueError:
+        return jsonify({"error": "Invalid json fields"}), 415
+    session = ws_session.find_session_by_token(token)
+    if session is None:
+        return jsonify({'error': 'Session is not found'})
+    user = ws_user.get_user(session.user_id)
+    if user is None:
+        return jsonify({'error': 'User is not found'})
+
+    return jsonify({})
+
+
 @app.post("/get_username")
 def get_username():
     if not request.is_json:
