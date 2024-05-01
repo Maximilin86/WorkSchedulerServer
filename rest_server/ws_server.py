@@ -39,15 +39,21 @@ def login():
         password = form['password']
     except ValueError:
         return jsonify({"error": "Invalid json fields"}), 415
-    user = ws_user.find_user_by_auth(username, password)
-    if user is None:
-        return jsonify({'error': 'User is not found'})
+    # user = ws_user.find_user_by_auth(username, password)
+    # if user is None:
+    #     return jsonify({'error': 'User is not found'})
+    user = ws_user.get_user(1)  # fixme: for debug only
+    # user = ws_user.get_user(3)  # fixme: for debug only
+
     token = ws_session.start_user_session(user.id)
-    return jsonify({'token': token})
+    display_name = user.first_name
+    if user.fathers_name is not None:
+        display_name += f' {user.fathers_name}'
+    return jsonify({'token': token, 'role': user.role.name, 'display-name': display_name})
 
 
 @app.post("/set_desire")
-def login():
+def set_desire():
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 415
     form = request.get_json()

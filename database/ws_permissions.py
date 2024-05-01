@@ -2,8 +2,8 @@ import enum
 
 
 class Role(enum.Enum):
-    USER = ()
-    ADMIN = ()
+    USER = enum.auto()
+    ADMIN = enum.auto()
 
 
 class Permission(enum.Enum):
@@ -22,11 +22,12 @@ def has_permission(role: Role, perm: Permission):
     return role in permissions_table.get(perm, [])
 
 
-def parse_role(name) -> Role or None:
+def parse_role(name: str) -> Role:
     for r in Role:
         if name.lower() == r.name.lower():
             return r
-    return None
+    print(f"unknown role from db {name}")
+    return Role.USER
 
 
 def get_permissions(role: Role) -> list[Permission]:
