@@ -4,9 +4,18 @@ from database import ws_db
 from database import ws_permissions
 
 
-class User(dict):
+class UserRow(dict):
 
-    __slots__ = ['id', 'user', 'password', 'role', 'first_name', 'last_name', 'fathers_name', 'created_at']
+    __slots__ = ['id', 'login', 'password', 'role', 'first_name', 'last_name', 'fathers_name', 'created_at']
+
+    id: int
+    login: str
+    password: str
+    role: ws_permissions.Role
+    first_name: str
+    last_name: str
+    fathers_name: str
+
     def __init__(self, row: dict):
         super().__init__(row)
         for k, v in row.items():
@@ -15,25 +24,25 @@ class User(dict):
             setattr(self, k, v)
 
 
-def add_user(user, password, role: ws_permissions.Role, first_name: str, last_name: str, fathers_name: str=None):
+def add_user(login, password, role: ws_permissions.Role, first_name: str, last_name: str, fathers_name: str=None):
     with ws_db.get_db_connection() as connection:
         cur = connection.cursor()
         cur.execute(
             "INSERT INTO users"
-            " (user, password, role, first_name, last_name, fathers_name)"
+            " (login, password, role, first_name, last_name, fathers_name)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (user, password, role.name, first_name, last_name, fathers_name)
+            (login, password, role.name, first_name, last_name, fathers_name)
         )
         connection.commit()
 
 
-def get_users() -> list[User]:
+def get_users() -> list[UserRow]:
     with ws_db.get_db_connection() as conn:
         rows = conn.execute('SELECT * FROM users').fetchall()
-    return [User(dict(ix)) for ix in rows]
+    return [UserRow(dict(ix)) for ix in rows]
 
 
-def get_user(user_id: int) -> User or None:
+def get_user(user_id: int) -> UserRow or None:
     with ws_db.get_db_connection() as conn:
         sql = (
             f'SELECT * FROM users WHERE'
@@ -43,18 +52,18 @@ def get_user(user_id: int) -> User or None:
         row = conn.execute(sql).fetchone()
     if row is None:
         return None
-    return User(dict(row))
+    return UserRow(dict(row))
 
 
-def find_user_by_auth(username: str, password: str) -> User or None:
+def find_user_by_auth(login: str, password: str) -> UserRow or None:
     with ws_db.get_db_connection() as conn:
         sql = (f'SELECT * FROM users WHERE'
-               f' `user` = \'{username}\' AND'
+               f' `login` = \'{login}\' AND'
                f' `password` = \'{password}\'')
         row = conn.execute(sql).fetchone()
     if row is None:
         return None
-    return User(dict(row))
+    return UserRow(dict(row))
 
 
 def create_initial_users():

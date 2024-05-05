@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import pathlib
 from database import ws_user
@@ -13,11 +14,15 @@ def get_db_connection():
 
 
 def initial():
-    with get_db_connection() as connection:
-        with open(pathlib.Path(__file__).parent / 'schema.sql') as f:
-            connection.executescript(f.read())
-        connection.commit()
-    ws_user.create_initial_users()
+    try:
+        with get_db_connection() as connection:
+            with open(pathlib.Path(__file__).parent / 'schema.sql') as f:
+                connection.executescript(f.read())
+            connection.commit()
+        # ws_user.create_initial_users()
+    except:
+        os.unlink(db_file)
+        raise
 
 
 if not db_file.exists():

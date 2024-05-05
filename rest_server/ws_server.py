@@ -35,11 +35,11 @@ def login():
         return jsonify({"error": "Request must be JSON"}), 415
     form = request.get_json()
     try:
-        username = form['user']
+        login = form['login']
         password = form['password']
     except ValueError:
         return jsonify({"error": "Invalid json fields"}), 415
-    # user = ws_user.find_user_by_auth(username, password)
+    # user = ws_user.find_user_by_auth(login, password)
     # if user is None:
     #     return jsonify({'error': 'User is not found'})
     user = ws_user.get_user(1)  # fixme: for debug only
