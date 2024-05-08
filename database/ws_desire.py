@@ -2,6 +2,7 @@ import datetime
 import json
 import enum
 
+import ws_utils
 from database import ws_db
 from database import ws_permissions
 
@@ -10,6 +11,14 @@ class Desire(enum.IntEnum):
     REST = 0
     WORK = 1
     ALL_DAY = 2
+
+
+def parse_desire(name: str) -> Desire or None:
+    for v in Desire:
+        if name.lower() == v.name.lower():
+            return v
+    print(f"unknown desire {name}")
+    return None
 
 
 class DesireRow(dict):
@@ -25,7 +34,7 @@ class DesireRow(dict):
         super().__init__(row)
         for k, v in row.items():
             if k == 'date':
-                v = datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                v = ws_utils.parse_date(v)
             elif k == 'desire_id':
                 k = 'desire'
                 v = Desire(v)
@@ -78,7 +87,7 @@ def get_desires_between(fr: datetime.date, to: datetime.date) -> list[DesireRow]
         rows = conn.execute(
             "SELECT * FROM desires"
             " WHERE date BETWEEN ? AND ?",
-            (fr, to)
+            (fr, to - datetime.timedelta(days=1))
         ).fetchall()
     return [DesireRow(dict(ix)) for ix in rows]
 

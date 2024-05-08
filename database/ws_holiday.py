@@ -1,6 +1,7 @@
 import datetime
 from dateutil.relativedelta import relativedelta
 
+import ws_utils
 from database import ws_db
 from ws_utils import daterange, to_epoch_days
 
@@ -16,7 +17,7 @@ class HolidayRow(dict):
         super().__init__(row)
         for k, v in row.items():
             if k == 'date':
-                v = datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                v = ws_utils.parse_date(v)
             elif k == 'is_work_day':
                 v = True if v != 0 else False
             setattr(self, k, v)
@@ -54,7 +55,7 @@ def _get_holidays_between(fr: datetime.date, to: datetime.date) -> list[HolidayR
         rows = conn.execute(
             "SELECT * FROM holidays"
             " WHERE date BETWEEN ? AND ?",
-            (fr, to)
+            (fr, to - datetime.timedelta(days=1))
         ).fetchall()
     return [HolidayRow(dict(ix)) for ix in rows]
 

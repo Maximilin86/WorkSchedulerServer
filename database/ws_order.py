@@ -2,6 +2,7 @@ import datetime
 import json
 import enum
 
+import ws_utils
 from database import ws_db
 from database import ws_permissions
 
@@ -25,7 +26,7 @@ class OrderRow(dict):
         super().__init__(row)
         for k, v in row.items():
             if k == 'date':
-                v = datetime.datetime.strptime(v, "%Y-%m-%d").date()
+                v = ws_utils.parse_date(v)
             elif k == 'order_id':
                 k = 'order'
                 v = Order(v)
@@ -38,7 +39,24 @@ def set_order(date: datetime.date, user_id, order: Order or None, comment=""):
             # check no one has all day here
             ad_user_id = get_all_day_order_user_id(date)
             if ad_user_id is not None:
-                raise Exception(f'{date}: cant set all_day for user {user_id} because user {ad_user_id} already all_day')
+                if ad_user_id == user_id:
+                    cur = connection.cursor()
+                    cur.execute(
+                        "UPDATE orders SET comment = ? WHERE"
+                        " `date` = ? AND"
+                        " `user_id` = ?",
+                        (comment,
+                         date, user_id)
+                    )
+                    return
+                else:
+                    cur = connection.cursor()
+                    cur.execute(
+                        "DELETE FROM orders WHERE"
+                        " `date` = ? AND"
+                        " `user_id` = ?",
+                        (date, ad_user_id)
+                    )
         cur = connection.cursor()
         if order is None:
             cur.execute(
@@ -83,7 +101,7 @@ def get_orders_between(fr: datetime.date, to: datetime.date) -> list[OrderRow]:
         rows = conn.execute(
             "SELECT * FROM orders"
             " WHERE date BETWEEN ? AND ?",
-            (fr, to)
+            (fr, to - datetime.timedelta(days=1))
         ).fetchall()
     return [OrderRow(dict(ix)) for ix in rows]
 
