@@ -214,6 +214,8 @@ class DistributionAlg:
                 user.done_hours += get_hours_for_day(row.order, is_rest)
                 if row.order is ws_order.Order.ALL_DAY:
                     user.all_day.add(day.day)
+                if row.order is ws_order.Order.WORK:
+                    user.work8h.add(day.day)
         # достаем модификаторы выбора пользователя
         #   учитываем пожелания
         for row in ws_desire.get_desires_between(self.cur, self.end):
@@ -227,7 +229,7 @@ class DistributionAlg:
         #     если юзер работал all_day в день до начала распределения
         ad_user_id = ws_order.get_all_day_order_user_id(self.cur - timedelta(days=1))
         if ad_user_id is not None:
-            self.user_map[ad_user_id].force_rest[1] = 'last_month_all_day'
+            self.user_map[ad_user_id].force_rest[self.cur.day] = 'last_month_all_day'
 
     def run(self):
         # * * *  Алгоритм * * *

@@ -13,14 +13,6 @@ class Desire(enum.IntEnum):
     ALL_DAY = 2
 
 
-def parse_desire(name: str) -> Desire or None:
-    for v in Desire:
-        if name.lower() == v.name.lower():
-            return v
-    print(f"unknown desire {name}")
-    return None
-
-
 class DesireRow(dict):
 
     __slots__ = ['date', 'user_id', 'desire', 'comment', 'created_at']
@@ -88,6 +80,16 @@ def get_desires_between(fr: datetime.date, to: datetime.date) -> list[DesireRow]
             "SELECT * FROM desires"
             " WHERE date BETWEEN ? AND ?",
             (fr, to - datetime.timedelta(days=1))
+        ).fetchall()
+    return [DesireRow(dict(ix)) for ix in rows]
+
+
+def get_user_desires_between(user_id: int, fr: datetime.date, to: datetime.date) -> list[DesireRow]:
+    with ws_db.get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM desires"
+            " WHERE `user_id` = ? AND date BETWEEN ? AND ?",
+            (user_id, fr, to - datetime.timedelta(days=1))
         ).fetchall()
     return [DesireRow(dict(ix)) for ix in rows]
 

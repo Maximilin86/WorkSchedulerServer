@@ -106,6 +106,16 @@ def get_orders_between(fr: datetime.date, to: datetime.date) -> list[OrderRow]:
     return [OrderRow(dict(ix)) for ix in rows]
 
 
+def get_user_orders_between(user_id: int, fr: datetime.date, to: datetime.date) -> list[OrderRow]:
+    with ws_db.get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM orders"
+            " WHERE `user_id` = ? AND date BETWEEN ? AND ?",
+            (user_id, fr, to - datetime.timedelta(days=1))
+        ).fetchall()
+    return [OrderRow(dict(ix)) for ix in rows]
+
+
 def get_order(date: datetime.date, user_id: int) -> OrderRow or None:
     with ws_db.get_db_connection() as conn:
         cursor = conn.execute(

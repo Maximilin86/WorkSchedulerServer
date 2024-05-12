@@ -24,7 +24,7 @@ class UserRow(dict):
             setattr(self, k, v)
 
 
-def add_user(login, password, role: ws_permissions.Role, first_name: str, last_name: str, fathers_name: str=None):
+def add_user(login, password, role: ws_permissions.Role, first_name: str, last_name: str, fathers_name: str=None) -> int:
     with ws_db.get_db_connection() as connection:
         cur = connection.cursor()
         cur.execute(
@@ -32,6 +32,20 @@ def add_user(login, password, role: ws_permissions.Role, first_name: str, last_n
             " (login, password, role, first_name, last_name, fathers_name)"
             " VALUES (?, ?, ?, ?, ?, ?)",
             (login, password, role.name, first_name, last_name, fathers_name)
+        )
+        user_id = cur.lastrowid
+        connection.commit()
+    return user_id
+
+
+def update_user(row: UserRow):
+    with ws_db.get_db_connection() as connection:
+        cur = connection.cursor()
+        cur.execute(
+            "UPDATE users SET login = ?, password = ?, role = ?, first_name = ?, last_name = ?, fathers_name = ? WHERE"
+            " `id` = ?",
+            (row.login, row.password, row.role.name, row.first_name, row.last_name, row.fathers_name,
+             row.id)
         )
         connection.commit()
 
@@ -55,11 +69,32 @@ def get_user(user_id: int) -> UserRow or None:
     return UserRow(dict(row))
 
 
+def delete_user(user_id: int) -> bool:
+    with ws_db.get_db_connection() as connection:
+        cur = connection.cursor()
+        cur.execute(
+            "DELETE FROM users WHERE"
+            " `id` = ?",
+            (user_id,)
+        )
+        return cur.rowcount != 0
+
+
 def find_user_by_auth(login: str, password: str) -> UserRow or None:
     with ws_db.get_db_connection() as conn:
         sql = (f'SELECT * FROM users WHERE'
                f' `login` = \'{login}\' AND'
                f' `password` = \'{password}\'')
+        row = conn.execute(sql).fetchone()
+    if row is None:
+        return None
+    return UserRow(dict(row))
+
+
+def find_user_by_login(login: str) -> UserRow or None:
+    with ws_db.get_db_connection() as conn:
+        sql = (f'SELECT * FROM users WHERE'
+               f' `login` = \'{login}\'')
         row = conn.execute(sql).fetchone()
     if row is None:
         return None

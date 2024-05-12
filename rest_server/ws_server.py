@@ -1,3 +1,4 @@
+import datetime
 import time
 
 from dateutil.relativedelta import relativedelta
@@ -61,7 +62,7 @@ def login():
     })
 
 
-def _check_user(form, required_permission: ws_permissions.Permission) -> tuple[ws_user.UserRow or None, any]:
+def _check_user(form, required_permission: ws_permissions.Permission or None) -> tuple[ws_user.UserRow or None, any]:
     try:
         token = form['token']
     except ValueError:
@@ -72,7 +73,7 @@ def _check_user(form, required_permission: ws_permissions.Permission) -> tuple[w
     user = ws_user.get_user(session.user_id)
     if user is None:
         return None, (jsonify({'error': 'User is not found'}), 401)  # Unauthorized
-    if not ws_permissions.has_permission(user.role, required_permission):
+    if required_permission is not None and not ws_permissions.has_permission(user.role, required_permission):
         return None, (jsonify({'error': 'User has no permission'}), 403)  # Forbidden
     # time.sleep(1)  # fixme: test fake delay
     return user, None
@@ -93,12 +94,41 @@ def set_desire():
     except ValueError:
         return jsonify({"error": "Invalid json fields"}), 400  # Bad Request
     desire = None
-    if desire_id:
-        desire = ws_desire.parse_desire(desire_id)
+    if desire_id != -1:
+        desire = ws_desire.Desire(desire_id)
         if desire is None:
             return jsonify({'error': f'Unknown desire id {desire_id}'})
     ws_desire.set_desire(date, user.id, desire, comment)
     return jsonify({})
+
+
+@app.post("/get_desire_data")
+def get_desire_data():
+    if not request.is_json:
+        return {"error": "Request must be JSON"}, 415  # Unsupported Media Type
+    form = request.get_json()
+    user, error = _check_user(form, ws_permissions.Permission.QUERY_DESIRE)
+    if error:
+        return error
+    try:
+        date = ws_utils.parse_date(form['date'])
+    except ValueError:
+        return jsonify({"error": "Invalid json fields"}), 400  # Bad Request
+    start = date.replace(day=1)
+    end = start + relativedelta(months=1)
+    desires = ws_desire.get_user_desires_between(user.id, start, end)
+    print("get_desire_data", start, end, f'{user.id} {user.first_name} {user.last_name}', desires)
+    return build_desires_data(desires)
+
+
+def build_desires_data(desires):
+    desires_by_day = {}
+    for row in desires:
+        desires_by_day[row.date.day] = {
+            "desire_id": int(row.desire),
+            "comment": row.comment,
+        }
+    return jsonify({'desires_by_day': [{"day": k, **v} for k, v in desires_by_day.items()], })
 
 
 @app.post("/set_order")
@@ -203,16 +233,27 @@ def get_month_data():
     if not request.is_json:
         return {"error": "Request must be JSON"}, 415  # Unsupported Media Type
     form = request.get_json()
-    user, error = _check_user(form, ws_permissions.Permission.QUERY_ORDER)
+    user, error = _check_user(form, None)
     if error:
         return error
     try:
         date = ws_utils.parse_date(form['date'])
     except ValueError:
         return jsonify({"error": "Invalid json fields"}), 400  # Bad Request
-    start = date.replace(day=1)
-    end = start + relativedelta(months=1)
-    orders = ws_order.get_orders_between(start, end)
+    if ws_permissions.has_permission(user.role, ws_permissions.Permission.QUERY_ORDER):
+        start = date.replace(day=1)
+        end = start + relativedelta(months=1)
+        orders = ws_order.get_orders_between(start, end)
+        return build_orders_data(orders)
+    if ws_permissions.has_permission(user.role, ws_permissions.Permission.QUERY_SELF_ORDER):
+        start = date.replace(day=1)
+        end = start + relativedelta(months=1)
+        orders = ws_order.get_user_orders_between(user.id, start, end)
+        return build_orders_data(orders)
+    return jsonify({'error': 'User has no permission'}), 403  # Forbidden
+
+
+def build_orders_data(orders):
     orders_by_day = {}
     for row in orders:
         orders_by_day.setdefault(row.date.day, []).append({
@@ -220,13 +261,11 @@ def get_month_data():
             "order_id": int(row.order),
             "comment": row.comment,
         })
-    return jsonify({
-        'orders_by_day': [{"day": k, "orders": v} for k, v in orders_by_day.items()],
-    })
+    return jsonify({'orders_by_day': [{"day": k, "orders": v} for k, v in orders_by_day.items()], })
 
 
 @app.post("/autifill")
-def get_month_data():
+def autifill():
     if not request.is_json:
         return {"error": "Request must be JSON"}, 415  # Unsupported Media Type
     form = request.get_json()
@@ -243,26 +282,23 @@ def get_month_data():
     alg.prepare()
     alg.run()
 
+    # check alg errors
     for day in ws_utils.daterange(alg.cur, alg.end):
-        print(day)
-        print(f'  all day {alg.make_all_day.get(day.day)}')
-        for user in sorted(alg.make_work8h.get(day.day, []), key=lambda e: e[0].row.id):
-            print(f'  work8h {user}')
         err = alg.error_all_day.get(day.day)
         if err:
-            print(f'  err {err}')
+            print(f'  err {day} {err}')
+            return jsonify({"error": f"{day} {err}"}), 400  # Bad Request
+
+
+    # alg is successfull
+    for day in ws_utils.daterange(alg.cur, alg.end):
+        user, reasons = alg.make_all_day.get(day.day)  # type: work_scheduler.UserMonthWork, list[str]
+        ws_order.set_order(day, user.row.id, ws_order.Order.ALL_DAY, str(reasons))
+        for user, reasons in alg.make_work8h.get(day.day, []):
+            ws_order.set_order(day, user.row.id, ws_order.Order.WORK, str(reasons))
 
     orders = ws_order.get_orders_between(alg.start, alg.end)
-    orders_by_day = {}
-    for row in orders:
-        orders_by_day.setdefault(row.date.day, []).append({
-            "user_id": row.user_id,
-            "order_id": int(row.order),
-            "comment": row.comment,
-        })
-    return jsonify({
-        'orders_by_day': [{"day": k, "orders": v} for k, v in orders_by_day.items()],
-    })
+    return build_orders_data(orders)
 
 
 @app.post("/get_orders")
@@ -289,14 +325,21 @@ def get_orders():
     })
 
 
-@app.post("/get_users")
-def get_users():
-    if not request.is_json:
-        return jsonify({"error": "Request must be JSON"}), 415  # Unsupported Media Type
-    form = request.get_json()
-    user, error = _check_user(form, ws_permissions.Permission.QUERY_USER)
-    if error:
-        return error
+def build_user(user_id):
+    user = ws_user.get_user(user_id)
+    return jsonify({
+        "user": {
+            'id': user.id,
+            'login': user.login,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'fathers_name': user.fathers_name,
+            'role': user.role.name.lower(),
+        }
+    })
+
+
+def build_users():
     users = []
     for user in ws_user.get_users():
         users.append({
@@ -310,5 +353,84 @@ def get_users():
     return jsonify({
         'users': users,
     })
+
+
+@app.post("/get_users")
+def get_users():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415  # Unsupported Media Type
+    form = request.get_json()
+    user, error = _check_user(form, ws_permissions.Permission.QUERY_USER)
+    if error:
+        return error
+    return build_users()
+
+
+@app.post("/set_user")
+def set_user():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415  # Unsupported Media Type
+    form = request.get_json()
+    user, error = _check_user(form, ws_permissions.Permission.MODIFY_USER)
+    if error:
+        return error
+    try:
+        target_user_id = form['user_id']
+        login = form['login']
+        password = form.get('password')
+        first_name = form.get('first_name')
+        last_name = form.get('last_name')
+        fathers_name = form.get('fathers_name')
+    except ValueError:
+        return jsonify({"error": "Invalid json fields"}), 400  # Bad Request
+    target_user: ws_user.UserRow = ws_user.get_user(target_user_id)
+    if target_user is None:
+        return jsonify({'error': 'Target user is not found'}), 400  # Bad Request
+    print("set_user", f'{target_user.first_name} {target_user.last_name}')
+    target_user.login = login
+    if password:
+        target_user.password = password
+    target_user.first_name = first_name if first_name else None
+    target_user.last_name = last_name if last_name else None
+    target_user.fathers_name = fathers_name if fathers_name else None
+    ws_user.update_user(target_user)
+    return build_users()
+
+
+@app.post("/delete_user")
+def delete_user():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415  # Unsupported Media Type
+    form = request.get_json()
+    user, error = _check_user(form, ws_permissions.Permission.MODIFY_USER)
+    if error:
+        return error
+    try:
+        target_user_id = form['user_id']
+    except ValueError:
+        return jsonify({"error": "Invalid json fields"}), 400  # Bad Request
+    if not ws_user.delete_user(target_user_id):
+        return jsonify({'error': 'Target user is not found'}), 400  # Bad Request
+    return build_users()
+
+
+@app.post("/add_user")
+def add_user():
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415  # Unsupported Media Type
+    form = request.get_json()
+    user, error = _check_user(form, ws_permissions.Permission.MODIFY_USER)
+    if error:
+        return error
+    login = "login"
+    i = 1
+    while True:
+        target = ws_user.find_user_by_login(login)
+        if target is None:
+            break
+        i += 1
+        login = f"login{i}"
+    user_id = ws_user.add_user(login, "0000", ws_permissions.Role.USER, "Имя", "Фамилия")
+    return build_user(user_id)
 
 

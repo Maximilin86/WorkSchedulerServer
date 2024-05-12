@@ -10,17 +10,23 @@ class Permission(enum.Enum):
 
     QUERY_SESSION = enum.auto()
     QUERY_USER = enum.auto()
+    MODIFY_USER = enum.auto()
     QUERY_ORDER = enum.auto()
+    QUERY_SELF_ORDER = enum.auto()
     MODIFY_ORDER = enum.auto()
+    QUERY_DESIRE = enum.auto()
     MODIFY_DESIRE = enum.auto()
     QUERY_SELF = enum.auto()
 
 
 permissions_table = {
     Permission.QUERY_USER: (Role.ADMIN,),
+    Permission.QUERY_SELF_ORDER: (Role.USER,Role.ADMIN,),
+    Permission.MODIFY_USER: (Role.ADMIN,),
     Permission.QUERY_SESSION: (Role.ADMIN,),
     Permission.QUERY_ORDER: (Role.ADMIN,),
     Permission.MODIFY_ORDER: (Role.ADMIN,),
+    Permission.QUERY_DESIRE: (Role.USER,Role.ADMIN,),
     Permission.MODIFY_DESIRE: (Role.USER,Role.ADMIN,),
     Permission.QUERY_SELF: (Role.USER,Role.ADMIN,),
 }
